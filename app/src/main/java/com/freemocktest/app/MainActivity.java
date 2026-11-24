@@ -30,18 +30,19 @@ public class MainActivity extends AppCompatActivity {
     private LinearLayout rootLayout;
     private AdView bannerAdView;
     private InterstitialAd interstitialAd;
+    private boolean isTestPage = false;
 
     private static final String WEBSITE_URL =
             "https://reliable-otter-eec9e4.netlify.app";
 
     private static final String HOME_BANNER_ID =
-            "ca-app-pub-4009702350721862/8418510001";
+            "ca-app-pub-4089702550721662/8418510985";
 
     private static final String TEST_BANNER_ID =
-            "ca-app-pub-4009702350721862/3343050918";
+            "ca-app-pub-4089702550721662/5343036918";
 
     private static final String INTERSTITIAL_ID =
-            "ca-app-pub-4009702350721862/3151465229";
+            "ca-app-pub-4089702550721662/5151465229";
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -77,12 +78,13 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
-                if (url != null) {
-                    String lower = url.toLowerCase();
-                    if (lower.contains("result") || lower.contains("score")) {
-                        showInterstitialAd();
-                    }
-                }
+                updateBannerForUrl(url);
+            }
+
+            @Override
+            public void doUpdateVisitedHistory(WebView view, String url, boolean isReload) {
+                super.doUpdateVisitedHistory(view, url, isReload);
+                updateBannerForUrl(url);
             }
         });
 
@@ -101,7 +103,12 @@ public class MainActivity extends AppCompatActivity {
             public boolean onJsConfirm(WebView view, String url, String message, JsResult result) {
                 new AlertDialog.Builder(MainActivity.this)
                         .setMessage(message)
-                        .setPositiveButton("OK", (dialog, which) -> result.confirm())
+                        .setPositiveButton("OK", (dialog, which) -> {
+                            result.confirm();
+                            if (message != null && message.toLowerCase().contains("submit")) {
+                                showInterstitialAd();
+                            }
+                        })
                         .setNegativeButton("Cancel", (dialog, which) -> result.cancel())
                         .setCancelable(false)
                         .show();
@@ -109,15 +116,10 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        bannerAdView = new AdView(this);
-        bannerAdView.setAdUnitId(HOME_BANNER_ID);
-        bannerAdView.setAdSize(AdSize.BANNER);
-
         rootLayout.addView(webView);
-        rootLayout.addView(bannerAdView);
+        loadBanner(HOME_BANNER_ID);
         setContentView(rootLayout);
 
-        bannerAdView.loadAd(new AdRequest.Builder().build());
         webView.loadUrl(WEBSITE_URL);
 
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
@@ -131,6 +133,28 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
+    }
+
+    private void updateBannerForUrl(String url) {
+        if (url == null) return;
+        String lower = url.toLowerCase();
+        boolean nowInTest = lower.contains("test") || lower.contains("quiz") || lower.contains("exam") || lower.contains("set");
+        if (nowInTest != isTestPage) {
+            isTestPage = nowInTest;
+            loadBanner(isTestPage ? TEST_BANNER_ID : HOME_BANNER_ID);
+        }
+    }
+
+    private void loadBanner(String adUnitId) {
+        if (bannerAdView != null) {
+            rootLayout.removeView(bannerAdView);
+            bannerAdView.destroy();
+        }
+        bannerAdView = new AdView(this);
+        bannerAdView.setAdUnitId(adUnitId);
+        bannerAdView.setAdSize(AdSize.BANNER);
+        rootLayout.addView(bannerAdView);
+        bannerAdView.loadAd(new AdRequest.Builder().build());
     }
 
     private void loadInterstitialAd() {
