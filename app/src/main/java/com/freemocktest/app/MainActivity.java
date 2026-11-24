@@ -3,13 +3,13 @@ package com.freemocktest.app;
 import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.os.Bundle;
-import android.view.ViewGroup;
+import android.view.Gravity;
 import android.webkit.JsResult;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.widget.LinearLayout;
+import android.widget.FrameLayout;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
@@ -27,7 +27,7 @@ import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback;
 public class MainActivity extends AppCompatActivity {
 
     private WebView webView;
-    private LinearLayout rootLayout;
+    private FrameLayout bannerContainer;
     private AdView bannerAdView;
     private InterstitialAd interstitialAd;
     private boolean isTestPage = false;
@@ -48,24 +48,17 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
 
-        MobileAds.initialize(this, status -> {});
-        loadInterstitialAd();
+        webView = findViewById(R.id.webView);
+        bannerContainer = findViewById(R.id.bannerContainer);
 
-        rootLayout = new LinearLayout(this);
-        rootLayout.setOrientation(LinearLayout.VERTICAL);
-        rootLayout.setLayoutParams(new ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-        ));
-
-        webView = new WebView(this);
-        LinearLayout.LayoutParams webParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                0,
-                1.0f
-        );
-        webView.setLayoutParams(webParams);
+        MobileAds.initialize(this, status -> {
+            runOnUiThread(() -> {
+                loadBanner(HOME_BANNER_ID);
+                loadInterstitialAd();
+            });
+        });
 
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -116,10 +109,6 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        rootLayout.addView(webView);
-        loadBanner(HOME_BANNER_ID);
-        setContentView(rootLayout);
-
         webView.loadUrl(WEBSITE_URL);
 
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
@@ -138,7 +127,10 @@ public class MainActivity extends AppCompatActivity {
     private void updateBannerForUrl(String url) {
         if (url == null) return;
         String lower = url.toLowerCase();
-        boolean nowInTest = lower.contains("test") || lower.contains("quiz") || lower.contains("exam") || lower.contains("set");
+        boolean nowInTest = lower.contains("test")
+                || lower.contains("quiz")
+                || lower.contains("exam")
+                || lower.contains("set");
         if (nowInTest != isTestPage) {
             isTestPage = nowInTest;
             loadBanner(isTestPage ? TEST_BANNER_ID : HOME_BANNER_ID);
@@ -146,14 +138,25 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void loadBanner(String adUnitId) {
+        if (bannerContainer == null) return;
+
         if (bannerAdView != null) {
-            rootLayout.removeView(bannerAdView);
+            bannerContainer.removeView(bannerAdView);
             bannerAdView.destroy();
+            bannerAdView = null;
         }
+
         bannerAdView = new AdView(this);
         bannerAdView.setAdUnitId(adUnitId);
         bannerAdView.setAdSize(AdSize.BANNER);
-        rootLayout.addView(bannerAdView);
+
+        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+        );
+        params.gravity = Gravity.CENTER;
+        bannerContainer.addView(bannerAdView, params);
+
         bannerAdView.loadAd(new AdRequest.Builder().build());
     }
 
@@ -182,6 +185,22 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
             interstitialAd.show(this);
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        if (bannerAdView != null) {
+            bannerAdView.pause();
+        }
+        super.onPause();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (bannerAdView != null) {
+            bannerAdView.resume();
         }
     }
 
