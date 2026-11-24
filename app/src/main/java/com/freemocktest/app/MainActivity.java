@@ -1,13 +1,14 @@
 package com.freemocktest.app;
 
 import android.annotation.SuppressLint;
+import android.app.AlertDialog;
 import android.os.Bundle;
-import android.view.Gravity;
 import android.view.ViewGroup;
+import android.webkit.JsResult;
+import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 
 import androidx.activity.OnBackPressedCallback;
@@ -27,27 +28,18 @@ public class MainActivity extends AppCompatActivity {
 
     private WebView webView;
     private LinearLayout rootLayout;
-    private FrameLayout bannerContainer;
-    private AdView activeBannerView;
-    private String currentBannerUnitId = "";
+    private AdView bannerAdView;
     private InterstitialAd interstitialAd;
 
-    // Aapki Netlify website ka link
     private static final String WEBSITE_URL =
             "https://reliable-otter-eec9e4.netlify.app";
 
-    // Test page ke URL mein jo keyword aata ho
-    private static final String TEST_URL_KEYWORD = "test";
-
-    // Home_Banner
     private static final String HOME_BANNER_ID =
             "ca-app-pub-4009702350721862/8418510001";
 
-    // Test_Banner
     private static final String TEST_BANNER_ID =
             "ca-app-pub-4009702350721862/3343050918";
 
-    // Submit_Interstitial
     private static final String INTERSTITIAL_ID =
             "ca-app-pub-4009702350721862/3151465229";
 
@@ -77,6 +69,7 @@ public class MainActivity extends AppCompatActivity {
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
+        settings.setJavaScriptCanOpenWindowsAutomatically(true);
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
 
@@ -84,26 +77,47 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
-                updateBannerForUrl(url);
-                if (url != null && url.toLowerCase().contains("result")) {
-                    showInterstitialAd();
+                if (url != null) {
+                    String lower = url.toLowerCase();
+                    if (lower.contains("result") || lower.contains("score")) {
+                        showInterstitialAd();
+                    }
                 }
             }
         });
 
-        bannerContainer = new FrameLayout(this);
-        LinearLayout.LayoutParams bannerParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        bannerParams.gravity = Gravity.CENTER_HORIZONTAL;
-        bannerContainer.setLayoutParams(bannerParams);
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onJsAlert(WebView view, String url, String message, JsResult result) {
+                new AlertDialog.Builder(MainActivity.this)
+                        .setMessage(message)
+                        .setPositiveButton("OK", (dialog, which) -> result.confirm())
+                        .setCancelable(false)
+                        .show();
+                return true;
+            }
+
+            @Override
+            public boolean onJsConfirm(WebView view, String url, String message, JsResult result) {
+                new AlertDialog.Builder(MainActivity.this)
+                        .setMessage(message)
+                        .setPositiveButton("OK", (dialog, which) -> result.confirm())
+                        .setNegativeButton("Cancel", (dialog, which) -> result.cancel())
+                        .setCancelable(false)
+                        .show();
+                return true;
+            }
+        });
+
+        bannerAdView = new AdView(this);
+        bannerAdView.setAdUnitId(HOME_BANNER_ID);
+        bannerAdView.setAdSize(AdSize.BANNER);
 
         rootLayout.addView(webView);
-        rootLayout.addView(bannerContainer);
+        rootLayout.addView(bannerAdView);
         setContentView(rootLayout);
 
-        updateBannerForUrl(WEBSITE_URL);
+        bannerAdView.loadAd(new AdRequest.Builder().build());
         webView.loadUrl(WEBSITE_URL);
 
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
@@ -117,28 +131,6 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
-    }
-
-    private void updateBannerForUrl(String url) {
-        String targetUnitId = (url != null && url.toLowerCase().contains(TEST_URL_KEYWORD))
-                ? TEST_BANNER_ID
-                : HOME_BANNER_ID;
-
-        if (targetUnitId.equals(currentBannerUnitId)) {
-            return;
-        }
-        currentBannerUnitId = targetUnitId;
-
-        bannerContainer.removeAllViews();
-        if (activeBannerView != null) {
-            activeBannerView.destroy();
-        }
-
-        activeBannerView = new AdView(this);
-        activeBannerView.setAdUnitId(targetUnitId);
-        activeBannerView.setAdSize(AdSize.BANNER);
-        bannerContainer.addView(activeBannerView);
-        activeBannerView.loadAd(new AdRequest.Builder().build());
     }
 
     private void loadInterstitialAd() {
@@ -171,8 +163,8 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
-        if (activeBannerView != null) {
-            activeBannerView.destroy();
+        if (bannerAdView != null) {
+            bannerAdView.destroy();
         }
         if (webView != null) {
             webView.destroy();
